@@ -12,14 +12,38 @@ Flutter提供的NestedScrollView当body是PageView，且PageView里包含ListVie
 
 下面提供一个NestedScrollView和PageView配合使用的例子：
 
+![](imgs/demo1.gif)
+
+可以看到：
+1.当滑动PageView其中一个Page的ListView时，另外Page里的ListView也会跟着滑动。
+2.向下滑动的时，ListView并没有拉到顶部，Header部分也会被拉开。
+
+## 使用gnested_scrollview的运行效果
+
+![](imgs/demo2.gif)
+
+可以看到当滑动ListView时，另外的ListView并没有出现联动，头部的拉出时机也没有出现问题。
+
+
+## Usage
+
+添加依赖:
+
+```yaml
+dependencies:
+  gnested_scrollview: ^0.0.1
+```
+
+使用：
+
 ```dart
-// 一个NestedScrollView和PageView配合使用的例子
+
 class TestNestedScrollView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
 
-    Widget current = NestedScrollView(
+    Widget current = GNestedScrollView(
         headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled){
           return [
             SliverAppBar(
@@ -82,16 +106,3 @@ class _TabChildState extends State<TabChild> with AutomaticKeepAliveClientMixin 
   bool get wantKeepAlive => true;
 }
 ```
-运行结果如下：
-
-![](imgs/demo1.gif)
-
-可以看到：
-1.当滑动PageView其中一个Page的ListView时，另外Page里的ListView也会跟着滑动。
-2.向下滑动的时，ListView并没有拉到顶部，Header部分也会被拉开。
-
-## 使用gnested_scrollview的运行效果
-
-![](imgs/demo2.gif)
-
-可以看到当滑动ListView时，另外的ListView并没有出现联动，头部的拉出时机也没有出现问题。
