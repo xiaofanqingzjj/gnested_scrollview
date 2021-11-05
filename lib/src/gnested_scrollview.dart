@@ -812,7 +812,7 @@ class _NestedScrollCoordinator implements ScrollActivityDelegate, ScrollHoldCont
   // 处理用户的滑动
   @override
   void applyUserOffset(double delta) {
-    // print("applyUserOffset:$delta");
+    print("applyUserOffset:$delta");
 
     // 修改方向
     updateUserScrollDirection(
@@ -820,7 +820,7 @@ class _NestedScrollCoordinator implements ScrollActivityDelegate, ScrollHoldCont
     );
     assert(delta != 0.0);
 
-    // print("applyUserOffset:$delta");
+    print("applyUserOffset:$delta, _innerPositions:$_innerPositions");
 
     if (_innerPositions.isEmpty) {
       _outerPosition!.applyFullDragUpdate(delta);
@@ -848,8 +848,12 @@ class _NestedScrollCoordinator implements ScrollActivityDelegate, ScrollHoldCont
         );
 
 
+
         // 在这里修复联动滑动的问题
         if (innerDelta != 0.0) {
+
+
+          print("outerDelta:$outerDelta, innerDelta:$innerDelta, currentIndex:$currentPageIndex");
 
           // 如果body是PageView， 只处理当前选择的页
           if (currentPageIndex != null) {
@@ -901,9 +905,12 @@ class _NestedScrollCoordinator implements ScrollActivityDelegate, ScrollHoldCont
           // outerDelta = math.max(outerDelta, overscroll);
           // overscrolls.add(overscroll);
 
-          final double remainingDelta = overscrolls[currentPageIndex!] - outerDelta;
-          if (remainingDelta > 0.0)
-            innerPositions[currentPageIndex!].applyFullDragUpdate(remainingDelta);
+          if (overscrolls.length > currentPageIndex!) {
+            final double remainingDelta = overscrolls[currentPageIndex!] - outerDelta;
+            if (remainingDelta > 0.0)
+              innerPositions[currentPageIndex!].applyFullDragUpdate(remainingDelta);
+          }
+
         } else {
           // for (final _NestedScrollPosition position in innerPositions) {
           //   final double overscroll = position.applyClampedDragUpdate(innerDelta);
@@ -1128,21 +1135,33 @@ class _NestedScrollPosition extends ScrollPosition implements ScrollActivityDele
   // Returns the overscroll.
   double applyFullDragUpdate(double delta) {
     assert(delta != 0.0);
+
+
     final double oldPixels = pixels;
     // Apply friction:
     final double newPixels = pixels - physics.applyPhysicsToUserOffset(
       this,
       delta,
     );
+
+
+
     if (oldPixels == newPixels)
       return 0.0; // delta must have been so small we dropped it during floating point addition
+
+
     // Check for overscroll:
     final double overscroll = physics.applyBoundaryConditions(this, newPixels);
     final double actualNewPixels = newPixels - overscroll;
+    print("applyFullDragUpdate:$delta, old:$oldPixels, newPixels:$newPixels, overscroll:$overscroll, actualNewPixels:$actualNewPixels ");
+
     if (actualNewPixels != oldPixels) {
 
+      print("aforcePixels:$actualNewPixels");
       // 修改滑动值
       forcePixels(actualNewPixels);
+
+
       didUpdateScrollPositionBy(actualNewPixels - oldPixels);
     }
     if (overscroll != 0.0) {
