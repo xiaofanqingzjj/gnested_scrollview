@@ -1,6 +1,6 @@
 name: gnested_scrollview
 description: 一个自定义的NestedScrollView。解决了NestedScrollView和PageView不能兼容问题。
-version: 0.0.1
+version: 0.0.2
 homepage: https://github.com/xiaofanqingzjj/gnested_scrollview
 
 environment:
