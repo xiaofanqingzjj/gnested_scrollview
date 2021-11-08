@@ -103,7 +103,8 @@ class GNestedScrollViewState extends State<GNestedScrollView> {
   // 内嵌滑动协调器
   _NestedScrollCoordinator? _coordinator;
 
-  late int currentPageSelectIndex;
+  // 如果body是PageView的话，当前用户选择的PageIndex
+  int? currentPageSelectIndex;
 
   @override
   void initState() {
@@ -125,6 +126,7 @@ class GNestedScrollViewState extends State<GNestedScrollView> {
       final pageController = pageView.controller;
       currentPageSelectIndex = pageController.initialPage;
       pageController.addListener(() {
+        // print("pageControllerChange:${pageController.position}");
         final PageMetrics metrics = pageController.position as PageMetrics;
         final int currentPage = metrics.page?.round() ?? 0;
         if (currentPage != currentPageSelectIndex) {
@@ -426,13 +428,18 @@ class _NestedScrollCoordinator implements ScrollActivityDelegate, ScrollHoldCont
     _outerPosition!.beginActivity(newOuterActivity);
     bool scrolling = newOuterActivity.isScrolling;
 
-    print("beginActivity:$scrolling");
+    // print("beginActivity:$scrolling");
 
     if (currentPageIndex != null) {
-      final _NestedScrollPosition position = _innerPositions.elementAt(currentPageIndex!);
-      final ScrollActivity newInnerActivity = innerActivityGetter(position);
-      position.beginActivity(newInnerActivity);
-      scrolling = scrolling && newInnerActivity.isScrolling;
+
+      final position = _getCurrentPageScrollPosition(_innerPositions);
+
+      // final _NestedScrollPosition position = _innerPositions.elementAt(currentPageIndex!);
+      if (position != null) {
+        final ScrollActivity newInnerActivity = innerActivityGetter(position);
+        position.beginActivity(newInnerActivity);
+        scrolling = scrolling && newInnerActivity.isScrolling;
+      }
     } else {
       for (final _NestedScrollPosition position in _innerPositions) {
         final ScrollActivity newInnerActivity = innerActivityGetter(position);
@@ -469,7 +476,7 @@ class _NestedScrollCoordinator implements ScrollActivityDelegate, ScrollHoldCont
   ///
   @override
   void goBallistic(double velocity) {
-    print("goBallistic:$velocity");
+    // print("goBallistic:$velocity");
 
 
     beginActivity(
@@ -485,7 +492,7 @@ class _NestedScrollCoordinator implements ScrollActivityDelegate, ScrollHoldCont
 
   ScrollActivity createOuterBallisticScrollActivity(double velocity) {
 
-    print("createOuterBallisticScollActivity:$velocity");
+    // print("createOuterBallisticScollActivity:$velocity");
 
     // This function creates a ballistic scroll for the outer scrollable.
     //
@@ -502,7 +509,8 @@ class _NestedScrollCoordinator implements ScrollActivityDelegate, ScrollHoldCont
     if (velocity != 0.0) {
 
       if (currentPageIndex != null) {
-        innerPosition = _innerPositions.elementAt(currentPageIndex!);
+        innerPosition = _getCurrentPageScrollPosition(_innerPositions);
+            // _innerPositions.elementAt(currentPageIndex!);
         // print("innerPos:${position.pixels} velocity:$velocity, innerPix:${innerPosition?.pixels}");
         // if (innerPosition != null) {
         //   if (velocity > 0.0) {
@@ -531,7 +539,7 @@ class _NestedScrollCoordinator implements ScrollActivityDelegate, ScrollHoldCont
       }
     }
 
-    print("innerPosition:$innerPosition");
+    // print("innerPosition:$innerPosition");
 
     if (innerPosition == null) {
       // It's either just us or a velocity=0 situation.
@@ -710,7 +718,6 @@ class _NestedScrollCoordinator implements ScrollActivityDelegate, ScrollHoldCont
   }
 
   void pointerScroll(double delta) {
-    print("pointerScroll:$delta");
 
     assert(delta != 0.0);
 
@@ -805,8 +812,28 @@ class _NestedScrollCoordinator implements ScrollActivityDelegate, ScrollHoldCont
     return drag;
   }
 
-  /// 如果body是PageView的话，这个表示currengPageIndex
+  /// 如果body是PageView的话，这个表示currentPageIndex
+  ///
+  /// 在做协调滑动的时，要根据当前用户选择的Page来做滑动协调，而不是直接滑动所有的子可滑动页面
+  ///
   int? currentPageIndex = 0;
+
+  ///
+  /// 获取当前可滑动的position
+  ///
+  _NestedScrollPosition? _getCurrentPageScrollPosition(Iterable<_NestedScrollPosition> _innerPositions) {
+    _NestedScrollPosition? position;
+    if (currentPageIndex != null) {
+      _innerPositions.forEach((element) {
+          if (element.pageIndexInPageView == currentPageIndex) {
+            position = element;
+          }
+      });
+    }
+    print("_getCurrentPageScrollPosition index:$currentPageIndex pos:$position");
+    // final innerPosition = _innerPositions.elementAt(currentPageIndex!);
+    return position;
+  }
 
 
   // 处理用户的滑动
@@ -820,7 +847,7 @@ class _NestedScrollCoordinator implements ScrollActivityDelegate, ScrollHoldCont
     );
     assert(delta != 0.0);
 
-    print("applyUserOffset:$delta, _innerPositions:$_innerPositions");
+    // print("applyUserOffset:$delta, _innerPositions:$_innerPositions");
 
     if (_innerPositions.isEmpty) {
       _outerPosition!.applyFullDragUpdate(delta);
@@ -847,6 +874,7 @@ class _NestedScrollCoordinator implements ScrollActivityDelegate, ScrollHoldCont
           outerDelta,
         );
 
+        print("scrollOutDelta:$outerDelta, leftInnerDelta:$innerDelta");
 
 
         // 在这里修复联动滑动的问题
@@ -857,7 +885,14 @@ class _NestedScrollCoordinator implements ScrollActivityDelegate, ScrollHoldCont
 
           // 如果body是PageView， 只处理当前选择的页
           if (currentPageIndex != null) {
-            _innerPositions.elementAt(currentPageIndex!).applyFullDragUpdate(innerDelta);
+
+
+            final currentInnerPos = _getCurrentPageScrollPosition(_innerPositions);
+            //_innerPositions.elementAt(currentPageIndex!);
+
+            print("currentInnerPos:$_innerPositions");
+
+            currentInnerPos?.applyFullDragUpdate(innerDelta);
           } else {
             for (final _NestedScrollPosition position in _innerPositions)
               position.applyFullDragUpdate(innerDelta);
@@ -883,9 +918,18 @@ class _NestedScrollCoordinator implements ScrollActivityDelegate, ScrollHoldCont
         // 先应用子
 
         if (currentPageIndex != null) {
-          final double overscroll = innerPositions[currentPageIndex!].applyClampedDragUpdate(innerDelta);
-          outerDelta = math.max(outerDelta, overscroll);
-          overscrolls.add(overscroll);
+          final pos = _getCurrentPageScrollPosition(innerPositions);
+
+          if (pos != null) {
+
+            final double overscroll = pos.applyClampedDragUpdate(innerDelta);
+            outerDelta = math.max(outerDelta, overscroll);
+            overscrolls.add(overscroll);
+          }
+
+          // final double overscroll = innerPositions[currentPageIndex!].applyClampedDragUpdate(innerDelta);
+          // outerDelta = math.max(outerDelta, overscroll);
+          // overscrolls.add(overscroll);
         } else {
           for (final _NestedScrollPosition position in innerPositions) {
             final double overscroll = position.applyClampedDragUpdate(innerDelta);
@@ -907,8 +951,12 @@ class _NestedScrollCoordinator implements ScrollActivityDelegate, ScrollHoldCont
 
           if (overscrolls.length > currentPageIndex!) {
             final double remainingDelta = overscrolls[currentPageIndex!] - outerDelta;
-            if (remainingDelta > 0.0)
-              innerPositions[currentPageIndex!].applyFullDragUpdate(remainingDelta);
+            if (remainingDelta > 0.0) {
+              final pos = _getCurrentPageScrollPosition(innerPositions);
+              pos?.applyFullDragUpdate(remainingDelta);
+            }
+
+
           }
 
         } else {
@@ -962,6 +1010,7 @@ class _NestedScrollCoordinator implements ScrollActivityDelegate, ScrollHoldCont
 
 
 class _NestedScrollController extends ScrollController {
+
   _NestedScrollController(
       this.coordinator, {
         double initialScrollOffset = 0.0,
@@ -973,6 +1022,9 @@ class _NestedScrollController extends ScrollController {
 
   final _NestedScrollCoordinator coordinator;
 
+
+  int pageIndex = 0;
+
   // 最核心的点
   @override
   ScrollPosition createScrollPosition(
@@ -981,24 +1033,36 @@ class _NestedScrollController extends ScrollController {
       ScrollPosition? oldPosition,
       ) {
 
-    print("$debugLabel createScrollPosition");
-    return _NestedScrollPosition(
+
+    final pos =  _NestedScrollPosition(
       coordinator: coordinator,
       physics: physics,
       context: context,
       initialPixels: initialScrollOffset,
       oldPosition: oldPosition,
       debugLabel: debugLabel,
+
+      // 如果oldPosition有值，表示这次是恢复上次的值，如果oldPosition为空，表示新创建，目前没有找到好的办法
+      pageIndexInPageView: (oldPosition != null && oldPosition is _NestedScrollPosition) ? oldPosition.pageIndexInPageView : pageIndex
     );
+    print("$debugLabel createScrollPosition:$pos, oldPos:$oldPosition pageIndex:$pageIndex");
+
+    if (oldPosition == null) {
+      pageIndex ++;
+    }
+
+    // if (pageIndex >= p)
+
+    return pos;
   }
 
   @override
   void attach(ScrollPosition position) {
-    // assert(position is _NestedScrollPosition);
+    assert(position is _NestedScrollPosition);
     super.attach(position);
 
-    // coordinator.updateParent();
-    // coordinator.updateCanDrag();
+    coordinator.updateParent();
+    coordinator.updateCanDrag();
     // position.addListener(_scheduleUpdateShadow);
     // _scheduleUpdateShadow();
   }
@@ -1044,6 +1108,7 @@ class _NestedScrollPosition extends ScrollPosition implements ScrollActivityDele
     ScrollPosition? oldPosition,
     String? debugLabel,
     required this.coordinator,
+    this.pageIndexInPageView
   }) : super(
     physics: physics,
     context: context,
@@ -1063,6 +1128,10 @@ class _NestedScrollPosition extends ScrollPosition implements ScrollActivityDele
   TickerProvider get vsync => context.vsync;
 
   ScrollController? _parent;
+
+  // 如果是嵌入到PageView里的ListView的ScrollPosition，这个表示Page的index
+  // 目前没有找到好的办法来关联到PageView里的ListView，默认按创建的顺序来定义
+  int? pageIndexInPageView;
 
   void setParent(ScrollController? value) {
     _parent?.detach(this);
@@ -1153,11 +1222,11 @@ class _NestedScrollPosition extends ScrollPosition implements ScrollActivityDele
     // Check for overscroll:
     final double overscroll = physics.applyBoundaryConditions(this, newPixels);
     final double actualNewPixels = newPixels - overscroll;
-    print("applyFullDragUpdate:$delta, old:$oldPixels, newPixels:$newPixels, overscroll:$overscroll, actualNewPixels:$actualNewPixels ");
+    // print("applyFullDragUpdate:$delta, old:$oldPixels, newPixels:$newPixels, overscroll:$overscroll, actualNewPixels:$actualNewPixels ");
 
     if (actualNewPixels != oldPixels) {
 
-      print("aforcePixels:$actualNewPixels");
+      // print("aforcePixels:$actualNewPixels");
       // 修改滑动值
       forcePixels(actualNewPixels);
 
